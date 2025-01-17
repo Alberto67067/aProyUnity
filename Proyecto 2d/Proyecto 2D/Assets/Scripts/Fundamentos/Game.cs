@@ -29,7 +29,7 @@ public class Game
         random = new Random();
         map = new mapa(tamñmap, 1, 1);
         map.Paredes(map.ENTRDS, map.SALDS);
-        Tipo.Poder FBall = new Tipo.Poder("Fire Ball", 10, 0, 0, 7, 3, 15);
+        Tipo.Poder FBall = new Tipo.Poder();
         Tipo demon = new Tipo("Demonio", (int)Elem.Fuego, (int)Elem.Viento, (int)Elem.Agua, 1, FBall);
         token normal = new token("N", 15, 40, 40, 3, 7); 
         token[] a = {normal};
@@ -136,7 +136,7 @@ public class Game
                     {
                         if(item.VIDA <= 0 || item.TSUMON >= item.DURACION)
                         {
-                            item.Reinicio();
+                            item.IsDead();
                         }
                         else if (item.SUMMON)
                         {

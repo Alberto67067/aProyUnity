@@ -151,7 +151,7 @@ namespace Mapa
             }
             //Analogo al metodo anterior pero me en la ultima fila o columna
         }
-        private bool PosicionValida(int[,] mapa,int x, int y)
+        public bool PosicionValida(int[,] mapa,int x, int y)
         {
             if(x < 0 || x >= mapa.GetLength(0))
             {

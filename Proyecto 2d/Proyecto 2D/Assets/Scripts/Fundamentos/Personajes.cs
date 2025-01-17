@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Data.Common;
 using Mapa;
+using Unity.VisualScripting;
 namespace Heroes
 {
     /// <summary>
@@ -13,7 +14,8 @@ namespace Heroes
     {
         public string nombre{get;} 
         public (int, int) pos;
-        public enum Movimiento {Norte, Este, Sur, Oeste};
+        public (int, int) pos0;
+        public mapa map;
         public Queue<huella> rastro {get; set;}
         int tamanRastro;
         public int TAMANRASTRO{
@@ -23,11 +25,14 @@ namespace Heroes
         public int Bando;// 0 sera el bando Hunter y 1 sera el bando Explorer
         public Tipo tipo{get;}
         public int velocidad{get; set;}
+        public int velocidad0;
         public int vision{get; set;}//Me dara un radio de la vision que tiene el personaje, esto de seguro sera de las partes mas dificiles de programar
+        public int vision0;
         public int energia{get; set;}
         public int energiaMax{get; set;}
         public int vidaMax{get; set;}
         public int vida{get; set;}
+        public bool alive;
         public token[] tokens{get;}//Me dara los tokens que cada heroe podra invocar
         //public int invocaciones{get;}// Me dara la cantidad de invocaiones de tokens cada X turnos que podra hacer el Heroe
         /// <summary>
@@ -47,17 +52,22 @@ namespace Heroes
         {
             this.nombre = nombre;
             this.Bando = Bando;
+            this.map = map;
             pos = Posicionador(map, Bando);//Tendra que ser igual a la posicion inicial
+            pos0 = pos;
             rastro = new Queue<huella>();
             this.tamanRastro = tamanRastro;
             this.tipo = tipo;
             this.velocidad = velocidad;
+            this.velocidad0 = velocidad;
             this.vision = vision;
+            this.vision0 = vision;
             this.energia = energiaMax;
             this.energiaMax = energiaMax;
             this.vidaMax = vidaMax;
             this.vida = vidaMax;
             this.tokens = tokens;
+            this.alive = true;
         }
         public virtual (int, int) Posicionador(mapa map, int band)
         {
@@ -81,6 +91,47 @@ namespace Heroes
                 posi = map.ENTRDS[random.Next(0, map.ENTRDS.Count)];
             }
             return posi;
+        }
+        public void IsDead()
+        {
+            if(!alive)
+            {
+                vida = vidaMax;
+                energia = energiaMax;
+                rastro.Clear();
+                foreach (var item in tokens)
+                {
+                    item.SUMMON = false;
+                }
+                alive = true;
+                velocidad = velocidad0;
+                vision = vision0;
+            }
+        }
+        public bool EstaEnRango(Heroe Target, Tipo.Poder a)
+        {
+            int[] dx = {1, -1, 0, 0,};
+            int[] dy = {0, 0, -1, 1};
+            int[] x = {this.pos.Item1, this.pos.Item1,this.pos.Item1,this.pos.Item1};
+            int[] y = {this.pos.Item2, this.pos.Item2,this.pos.Item2,this.pos.Item2};
+            int costo = 1;
+            while(costo < a.rango)    
+            {
+                for (int k = 0; k < 4; k++)
+                {
+                    if(map.PosicionValida(map.MAP, x[k] + dx[k], y[k] + dy[k]) && map.MAP[x[k] + dx[k], y[k] + dy[k]] != 1)
+                    {
+                        x[k] += dx[k];
+                        y[k] += dy[k];
+                    }
+                    if ((x[k], y[k]) == Target.pos)
+                    {
+                        return true;
+                    }
+                }
+                costo++;
+            }
+            return false;
         }
         static void Main()
         {}
@@ -128,26 +179,117 @@ namespace Heroes
             */
             public class Poder
             {
-                string nombre;
+                public string nombre;
                 public int recarga;
-                public int damage;
-                public int healt;
-                public bool activo;
-                public int tactivo;
-                public int duracion;
                 public int energiaNec;
                 public int rango;
-                public Poder(string nombre,int damage, int healt, int duracion, int rango,int recarga, int energiaNec)
+                public int turnsactivo;
+                public bool activo;
+                // public Poder(string nombre, int duracion, int rango,int recarga, int energiaNec)
+                // {
+                //     this.nombre = nombre;
+                //     this.recarga = recarga;
+                //     this.energiaNec = energiaNec;
+                //     this.duracion = duracion;
+                //     this.rango = rango;
+                //     tactivo = 0;
+                //     activo = false;
+                // }
+            }
+            internal interface ICurador
+            {
+                public void Curar(Heroe Target);
+            }
+            internal interface IAttack
+            {
+                public void Atacar(Heroe Target);
+            }
+            internal interface IMovedor
+            {
+                public void Mover(Heroe Lanz);
+            }
+            internal interface IDestruc
+            {
+                public void Destruir()
+                {
+                }
+            }
+            internal interface IColocador
+            {
+                public void Colocar()
+                {
+                }
+            }
+            public class AtacarPoder : Poder, IAttack
+            {
+                public int damage;
+                public AtacarPoder(string nombre, int rango,int recarga, int energiaNec, int damage)
                 {
                     this.nombre = nombre;
                     this.recarga = recarga;
                     this.energiaNec = energiaNec;
-                    this.damage = damage;
-                    this.healt = healt;
-                    this.duracion = duracion;
                     this.rango = rango;
-                    tactivo = 0;
+                    this.damage = damage;
+                    this.turnsactivo = 0;
+                    this.activo = false;
+                }
+                public void Atacar(Heroe Target)
+                {
+                    Target.vida -= this.damage;
+                    if (Target.vida <= Target.vidaMax)
+                    {
+                        Target.alive = false;
+                    }
+                }
+            
+            }
+            public class CurarPoder : Poder, ICurador
+            {
+                public int health;
+                public int duracion;
+                public CurarPoder(string nombre, int duracion, int rango,int recarga, int energiaNec, int health)
+                {
+                    this.nombre = nombre;
+                    this.recarga = recarga;
+                    this.duracion = duracion;
+                    this.energiaNec = energiaNec;
+                    this.rango = rango;
+                    this.health = health;
+                    this.turnsactivo = 0;
+                    this.activo = false;
+                }
+                public void Curar(Heroe Target)
+                {
+                    Target.vida += this.health;
+                    if (Target.vida > Target.vidaMax)
+                    {
+                        Target.vida = Target.vidaMax;
+                    }
+                }
+            }
+            public class MoverPoder : Poder, IMovedor
+            {
+                int movs;
+                public MoverPoder(string nombre, int movs, int rango,int recarga, int energiaNec)
+                {
+                    this.nombre = nombre;
+                    this.recarga = recarga;
+                    this.energiaNec = energiaNec;
+                    this.rango = rango;
+                    this.turnsactivo = 0;
+                    this.movs = movs;
                     activo = false;
+                }
+                public void Mover(Heroe Lanz)
+                {  
+                    if(activo)
+                    {
+                        Lanz.velocidad *= 2;
+                    }
+                    else
+                    {
+                        Lanz.velocidad /= 2;
+                    }
                 }
             }
         }
@@ -213,19 +355,21 @@ namespace Heroes
                 summon = false;
                 tsummon = 0;
             }
-            public void Reinicio()
+            public void IsDead()
             {
-                Damage = Damage1;
-                VIDA = VIDAMAX;
-                TSUMON = 0;
-                SUMMON = false;
+                if (TSUMON >= DURACION || VIDA <= 0)
+                {    
+                    Damage = Damage1;
+                    VIDA = VIDAMAX;
+                    TSUMON = 0;
+                    SUMMON = false;
+                }
             }
         }
         public class huella
         {
             public (int, int) pos;//Esto me dara la posicion de la huella
             public int direccion;//Esto la direccion del movimiento, no se si sera mas optimo esto o ver en donde esta el proximo mov
-            public enum Direccion{Norte, Este, Sur, Oeste};
             public bool activa;
             public huella((int, int) pos, int direccion, bool activa)
             {
@@ -239,4 +383,6 @@ namespace Heroes
                 // 3 = Oeste
             }
         }
+        public enum Direccion {Norte, Este, Sur, Oeste};
 }
+
